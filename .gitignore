@@ -1,0 +1,65 @@
+# Secrets & env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*credential*
+*credentials*
+auth.json
+secrets/
+.secrets/
+
+# Local-only notes / specs (never publish)
+.local/
+*.local
+*.local.*
+!.env.example
+
+# Dependencies & build output
+node_modules/
+dist/
+build/
+out/
+.cache/
+.vite/
+.vercel/
+.netlify/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Logs & temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+tmp/
+temp/
+*.tmp
+*.db
+*.sqlite
+*.sqlite3
+
+# OS & editor
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Agent / AI local (do not publish)
+.claude/settings.local.json
+CLAUDE.local.md
+AGENTS.local.md
+.codex/
+.cursor/rules.local*
+.grok/local/
