@@ -30,7 +30,6 @@ function resolveCircleRects(x, y, r, rects) {
       let dy = py - nearestY;
       const d2 = dx * dx + dy * dy;
       if (d2 >= r * r || d2 === 0) {
-        // Center inside rect: push out via min penetration
         if (
           px > rect.x &&
           px < rect.x + rect.w &&
@@ -64,6 +63,8 @@ export class Game {
     this.level = level;
     this.won = false;
     this.winFlash = 0;
+    /** Ghosts used at the moment of win (for scoring). */
+    this.winGhosts = 0;
     /** @type {Recording[]} */
     this.ghosts = [];
     /** @type {Recording} */
@@ -76,6 +77,12 @@ export class Game {
     this.resetPressed = false;
   }
 
+  /** @param {Level} level */
+  loadLevel(level) {
+    this.level = level;
+    this.hardReset();
+  }
+
   hardReset() {
     this.ghosts = [];
     this.active = createRecording();
@@ -84,6 +91,7 @@ export class Game {
     this.player.y = this.level.spawn.y;
     this.won = false;
     this.winFlash = 0;
+    this.winGhosts = 0;
     this.loopsCommitted = 0;
     this.maxedToast = 0;
   }
@@ -91,7 +99,6 @@ export class Game {
   softLoopBoundary() {
     const maxG = this.level.maxGhosts;
     if (this.ghosts.length < maxG) {
-      // Guarantee at least spawn pose if no samples yet
       if (this.active.samples.length === 0) {
         pushSample(this.active, 0, this.level.spawn.x, this.level.spawn.y);
       }
@@ -107,7 +114,6 @@ export class Game {
     this.player.y = this.level.spawn.y;
   }
 
-  /** Bodies that press plates: current player + ghosts at t */
   bodiesAt(t) {
     const bodies = [{ x: this.player.x, y: this.player.y }];
     for (const g of this.ghosts) {
@@ -176,7 +182,6 @@ export class Game {
     const plates = this.plateState(this.t);
     const solids = this.solidRects(plates);
 
-    // Move player (4-dir; diagonal normalized)
     let mx = 0;
     let my = 0;
     if (input.left) mx -= 1;
@@ -192,13 +197,11 @@ export class Game {
     let nx = this.player.x + mx;
     let ny = this.player.y + my;
 
-    // Separate axes for cleaner wall slide
     let resolved = resolveCircleRects(nx, this.player.y, PLAYER_RADIUS, solids);
     nx = resolved.x;
     resolved = resolveCircleRects(nx, this.player.y + my, PLAYER_RADIUS, solids);
     ny = resolved.y;
 
-    // Ghost solid vs player
     for (const g of this.ghosts) {
       const gp = poseAt(g, this.t);
       const dx = nx - gp.x;
@@ -209,7 +212,6 @@ export class Game {
         const push = (minDist - dist) / dist;
         nx += dx * push;
         ny += dy * push;
-        // re-resolve walls after ghost push
         const r2 = resolveCircleRects(nx, ny, PLAYER_RADIUS, solids);
         nx = r2.x;
         ny = r2.y;
@@ -221,50 +223,61 @@ export class Game {
 
     pushSample(this.active, this.t, this.player.x, this.player.y);
 
-    // Win: current player on exit (door must be open to reach it typically)
     const ex = this.level.exit;
     if (circleRectOverlap(this.player.x, this.player.y, PLAYER_RADIUS * 0.6, ex)) {
-      // Require all doors open if any exist — fairer tutorial
       const allDoorsOpen = this.level.doors.every((d) => this.doorOpen(d, plates));
       if (allDoorsOpen || this.level.doors.length === 0) {
         this.won = true;
         this.winFlash = 0;
+        this.winGhosts = this.ghosts.length;
       }
     }
   }
 
-  /** Step-by-step coach text for current situation (L01-friendly). */
+  /** Contextual coach — works for 1+ plates. */
   coachText(plates, doorsOpen) {
-    if (this.won) return "Nice — that was the loop trick.";
+    if (this.won) return "Clear!";
 
-    const playerOnPlate = this.level.plates.some((p) =>
+    const plateList = this.level.plates;
+    const heldCount = plateList.filter((p) => plates[p.id]).length;
+    const need = plateList.length;
+    const playerOnPlate = plateList.some((p) =>
       circleRectOverlap(this.player.x, this.player.y, PLAYER_RADIUS, p)
     );
-    const anyPlateOn = Object.values(plates).some(Boolean);
 
-    // Phase 1: no ghosts yet — teach record
+    if (need >= 2) {
+      if (!doorsOpen) {
+        if (this.ghosts.length === 0) {
+          if (playerOnPlate) {
+            return `Holding 1 plate — stay until timer ends, then record the other plate. (${heldCount}/${need} held now)`;
+          }
+          return `Door needs ALL ${need} plates at once. Record a ghost on each plate, then walk to EXIT.`;
+        }
+        return `Need ${need} plates held together (${heldCount}/${need}). Park ghosts on plates, then go when door opens.`;
+      }
+      return "All plates held — door open! Reach the green EXIT.";
+    }
+
+    // Single-plate (L01) coaching
     if (this.ghosts.length === 0) {
       if (playerOnPlate) {
         return "Good — stay on the plate until the timer hits 0. Your path is being recorded.";
       }
-      return "STEP 1/2 — Walk to the gold PLATE (bottom-left) and stand on it until the timer ends.";
+      return "STEP 1/2 — Walk to the gold PLATE and stand on it until the timer ends.";
     }
 
-    // Phase 2: have ghost — teach reuse
     if (!doorsOpen) {
-      if (anyPlateOn) {
+      if (heldCount > 0) {
         return "Door should open soon… if not, ghost missed the plate — press R and try again.";
       }
-      return "STEP 2/2 — Cyan ghost is your past self. Wait until it stands on the plate (door opens), then go.";
+      return "STEP 2/2 — Cyan ghost is your past self. Wait until it stands on the plate, then go.";
     }
 
-    return "Door open! Walk right through it into the green EXIT. (You are the white circle.)";
+    return "Door open! Walk through it into the green EXIT.";
   }
 
-  /** Snapshot for renderer */
   view() {
     const plates = this.plateState(this.t);
-    /** @type {{ id: string, open: boolean, x: number, y: number, w: number, h: number }[]} */
     const doors = this.level.doors.map((d) => ({
       id: d.id,
       open: this.doorOpen(d, plates),
@@ -277,7 +290,6 @@ export class Game {
     const doorsOpen =
       this.level.doors.length === 0 || doors.every((d) => d.open);
 
-    /** @type {{ x: number, y: number }[]} */
     const ghostPos = this.ghosts.map((g) => poseAt(g, this.t));
 
     /** @type {Record<string, boolean>} */
@@ -299,6 +311,7 @@ export class Game {
       exit: this.level.exit,
       won: this.won,
       winFlash: this.winFlash,
+      winGhosts: this.winGhosts,
       hint: this.coachText(plates, doorsOpen),
       hintPulse: this.hintPulse,
       maxedToast: this.maxedToast,

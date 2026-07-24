@@ -21,7 +21,195 @@ const COL = {
   barFill: "#4ec9d0",
   barWarn: "#e0a040",
   win: "#4ec9a0",
+  card: "#11141f",
+  cardBorder: "#2a3040",
+  cardHot: "#1a2230",
+  accent: "#4ec9d0",
 };
+
+/**
+ * Layout for level select cards (CSS pixels).
+ * @param {number} w
+ * @param {number} h
+ * @param {number} count
+ */
+export function menuLayout(w, h, count) {
+  const titleY = Math.max(48, h * 0.12);
+  const cardW = Math.min(420, w - 48);
+  const cardH = 64;
+  const gap = 12;
+  const totalH = count * cardH + (count - 1) * gap;
+  let startY = titleY + 56;
+  if (startY + totalH > h - 40) {
+    startY = Math.max(100, (h - totalH) / 2);
+  }
+  const x = (w - cardW) / 2;
+  /** @type {{ index: number, x: number, y: number, w: number, h: number }[]} */
+  const cards = [];
+  for (let i = 0; i < count; i++) {
+    cards.push({
+      index: i,
+      x,
+      y: startY + i * (cardH + gap),
+      w: cardW,
+      h: cardH,
+    });
+  }
+  return { titleY, cards };
+}
+
+/**
+ * Clear-screen button layout.
+ * @param {number} w
+ * @param {number} h
+ */
+export function clearLayout(w, h) {
+  const bw = 140;
+  const bh = 40;
+  const gap = 12;
+  const total = bw * 3 + gap * 2;
+  const x0 = (w - total) / 2;
+  const y = h / 2 + 48;
+  return {
+    replay: { x: x0, y, w: bw, h: bh, id: "replay" },
+    next: { x: x0 + bw + gap, y, w: bw, h: bh, id: "next" },
+    menu: { x: x0 + (bw + gap) * 2, y, w: bw, h: bh, id: "menu" },
+  };
+}
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} cssW
+ * @param {number} cssH
+ * @param {object} state
+ */
+export function renderMenu(ctx, cssW, cssH, state) {
+  const { levels, bests, hoverIndex } = state;
+  ctx.fillStyle = COL.bg;
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  const layout = menuLayout(cssW, cssH, levels.length);
+
+  ctx.fillStyle = COL.hud;
+  ctx.font = "700 28px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("LOOPSELF", cssW / 2, layout.titleY);
+
+  ctx.fillStyle = COL.hudDim;
+  ctx.font = "13px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.fillText("Short loops. Past you helps present you.", cssW / 2, layout.titleY + 28);
+
+  for (const card of layout.cards) {
+    const lv = levels[card.index];
+    const hot = hoverIndex === card.index;
+    ctx.fillStyle = hot ? COL.cardHot : COL.card;
+    roundRect(ctx, card.x, card.y, card.w, card.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = hot ? COL.accent : COL.cardBorder;
+    ctx.lineWidth = hot ? 2 : 1;
+    ctx.stroke();
+
+    const num = String(card.index + 1).padStart(2, "0");
+    ctx.fillStyle = COL.accent;
+    ctx.font = "700 16px ui-monospace, Menlo, monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(num, card.x + 16, card.y + 28);
+
+    ctx.fillStyle = COL.hud;
+    ctx.font = "600 15px ui-monospace, Menlo, monospace";
+    ctx.fillText(lv.name, card.x + 52, card.y + 28);
+
+    ctx.fillStyle = COL.hudDim;
+    ctx.font = "12px ui-monospace, Menlo, monospace";
+    ctx.fillText(lv.brief, card.x + 52, card.y + 48);
+
+    const best = bests[lv.id];
+    ctx.textAlign = "right";
+    if (best != null) {
+      ctx.fillStyle = COL.win;
+      ctx.font = "12px ui-monospace, Menlo, monospace";
+      ctx.fillText(`best ${best}g`, card.x + card.w - 16, card.y + 36);
+    } else {
+      ctx.fillStyle = COL.hudDim;
+      ctx.font = "12px ui-monospace, Menlo, monospace";
+      ctx.fillText("—", card.x + card.w - 16, card.y + 36);
+    }
+  }
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(106,122,144,0.85)";
+  ctx.font = "11px ui-monospace, Menlo, monospace";
+  ctx.fillText("Click a level  ·  or press 1–9", cssW / 2, cssH - 20);
+
+  return layout;
+}
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} cssW
+ * @param {number} cssH
+ * @param {ReturnType<import('./game.js').Game['view']>} v
+ * @param {{ best: number | null, isNew: boolean, hasNext: boolean }} clearInfo
+ */
+export function renderPlay(ctx, cssW, cssH, v, clearInfo) {
+  drawWorld(ctx, cssW, cssH, v);
+  drawHud(ctx, cssW, cssH, v, clearInfo);
+}
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} cssW
+ * @param {number} cssH
+ * @param {ReturnType<import('./game.js').Game['view']>} v
+ * @param {{ best: number | null, isNew: boolean, hasNext: boolean }} clearInfo
+ */
+export function renderClear(ctx, cssW, cssH, v, clearInfo) {
+  drawWorld(ctx, cssW, cssH, v);
+
+  ctx.fillStyle = "rgba(10, 12, 18, 0.62)";
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  ctx.fillStyle = COL.win;
+  ctx.font = "700 32px ui-monospace, SFMono-Regular, Menlo, monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("CLEAR", cssW / 2, cssH / 2 - 36);
+
+  ctx.fillStyle = COL.hud;
+  ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, monospace";
+  const ghosts = v.winGhosts ?? v.ghostCount;
+  let line = `Ghosts used: ${ghosts}`;
+  if (clearInfo.best != null) {
+    line += `  ·  best: ${clearInfo.best}`;
+  }
+  if (clearInfo.isNew) line += "  ·  NEW BEST";
+  ctx.fillText(line, cssW / 2, cssH / 2);
+
+  ctx.fillStyle = COL.hudDim;
+  ctx.font = "12px ui-monospace, Menlo, monospace";
+  ctx.fillText(v.level.name, cssW / 2, cssH / 2 + 24);
+
+  const buttons = clearLayout(cssW, cssH);
+  drawBtn(ctx, buttons.replay, "Replay (R)");
+  drawBtn(ctx, buttons.next, clearInfo.hasNext ? "Next (N)" : "Next —");
+  drawBtn(ctx, buttons.menu, "Menu (Esc)");
+
+  return buttons;
+}
+
+function drawBtn(ctx, b, label) {
+  ctx.fillStyle = COL.card;
+  roundRect(ctx, b.x, b.y, b.w, b.h, 6);
+  ctx.fill();
+  ctx.strokeStyle = COL.cardBorder;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = COL.hud;
+  ctx.font = "12px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2);
+  ctx.textBaseline = "alphabetic";
+}
 
 /**
  * @param {CanvasRenderingContext2D} ctx
@@ -29,11 +217,11 @@ const COL = {
  * @param {number} cssH
  * @param {ReturnType<import('./game.js').Game['view']>} v
  */
-export function render(ctx, cssW, cssH, v) {
+function drawWorld(ctx, cssW, cssH, v) {
   const level = v.level;
-  const scale = Math.min(cssW / level.width, cssH / level.height) * 0.92;
+  const scale = Math.min(cssW / level.width, cssH / level.height) * 0.88;
   const ox = (cssW - level.width * scale) / 2;
-  const oy = (cssH - level.height * scale) / 2 + 12;
+  const oy = (cssH - level.height * scale) / 2 + 8;
 
   ctx.fillStyle = COL.bg;
   ctx.fillRect(0, 0, cssW, cssH);
@@ -42,11 +230,9 @@ export function render(ctx, cssW, cssH, v) {
   ctx.translate(ox, oy);
   ctx.scale(scale, scale);
 
-  // Floor
   ctx.fillStyle = COL.floor;
   ctx.fillRect(0, 0, level.width, level.height);
 
-  // Subtle grid
   ctx.strokeStyle = "rgba(255,255,255,0.03)";
   ctx.lineWidth = 1;
   for (let x = 0; x <= level.width; x += TILE) {
@@ -62,7 +248,6 @@ export function render(ctx, cssW, cssH, v) {
     ctx.stroke();
   }
 
-  // Walls
   for (const w of level.walls) {
     ctx.fillStyle = COL.wall;
     ctx.fillRect(w.x, w.y, w.w, w.h);
@@ -71,7 +256,6 @@ export function render(ctx, cssW, cssH, v) {
     ctx.strokeRect(w.x + 0.5, w.y + 0.5, w.w - 1, w.h - 1);
   }
 
-  // Exit
   const ex = v.exit;
   ctx.fillStyle = COL.exit;
   ctx.fillRect(ex.x, ex.y, ex.w, ex.h);
@@ -83,8 +267,9 @@ export function render(ctx, cssW, cssH, v) {
   ctx.fillRect(ex.x + 6, ex.y + 6, ex.w - 12, ex.h - 12);
   ctx.globalAlpha = 1;
 
-  // Plates
-  for (const p of v.plates) {
+  const multiPlate = v.plates.length > 1;
+  for (let i = 0; i < v.plates.length; i++) {
+    const p = v.plates[i];
     const on = v.plateOn[p.id];
     ctx.fillStyle = on ? COL.plateOn : COL.plateOff;
     roundRect(ctx, p.x, p.y, p.w, p.h, 4);
@@ -98,16 +283,15 @@ export function render(ctx, cssW, cssH, v) {
       ctx.arc(p.x + p.w / 2, p.y + p.h / 2, PLAYER_RADIUS * 1.8, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Label
     ctx.fillStyle = on ? "#1a1408" : "#c8b080";
     ctx.font = "bold 9px ui-monospace, Menlo, monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(on ? "HELD" : "PLATE", p.x + p.w / 2, p.y + p.h / 2);
+    const label = on ? "HELD" : multiPlate ? `P${i + 1}` : "PLATE";
+    ctx.fillText(label, p.x + p.w / 2, p.y + p.h / 2);
     ctx.textBaseline = "alphabetic";
   }
 
-  // Doors
   for (const d of v.doors) {
     if (d.open) {
       ctx.fillStyle = COL.doorOpen;
@@ -136,16 +320,14 @@ export function render(ctx, cssW, cssH, v) {
     }
   }
 
-  // Exit label
   {
-    const ex = v.exit;
+    const e = v.exit;
     ctx.fillStyle = COL.exitCore;
     ctx.font = "bold 9px ui-monospace, Menlo, monospace";
     ctx.textAlign = "center";
-    ctx.fillText("EXIT", ex.x + ex.w / 2, ex.y + ex.h / 2 + 3);
+    ctx.fillText("EXIT", e.x + e.w / 2, e.y + e.h / 2 + 3);
   }
 
-  // Ghosts
   for (const g of v.ghosts) {
     ctx.beginPath();
     ctx.fillStyle = COL.ghost;
@@ -156,7 +338,6 @@ export function render(ctx, cssW, cssH, v) {
     ctx.stroke();
   }
 
-  // Player
   ctx.beginPath();
   ctx.fillStyle = COL.playerGlow;
   ctx.arc(v.player.x, v.player.y, PLAYER_RADIUS * 1.6, 0, Math.PI * 2);
@@ -167,9 +348,6 @@ export function render(ctx, cssW, cssH, v) {
   ctx.fill();
 
   ctx.restore();
-
-  // HUD (screen space)
-  drawHud(ctx, cssW, cssH, v);
 }
 
 /**
@@ -177,8 +355,9 @@ export function render(ctx, cssW, cssH, v) {
  * @param {number} w
  * @param {number} h
  * @param {ReturnType<import('./game.js').Game['view']>} v
+ * @param {{ best: number | null }} meta
  */
-function drawHud(ctx, w, h, v) {
+function drawHud(ctx, w, h, v, meta) {
   const pad = 16;
   ctx.fillStyle = COL.hud;
   ctx.font = "600 14px ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -187,9 +366,19 @@ function drawHud(ctx, w, h, v) {
 
   ctx.fillStyle = COL.hudDim;
   ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, monospace";
-  ctx.fillText(v.level.name, pad, pad + 30);
+  ctx.fillText(`${v.level.name}`, pad, pad + 30);
 
-  // Timer bar
+  if (meta.best != null) {
+    ctx.fillStyle = COL.win;
+    ctx.font = "11px ui-monospace, Menlo, monospace";
+    ctx.fillText(`best ${meta.best}g`, pad, pad + 46);
+  }
+
+  ctx.fillStyle = COL.hudDim;
+  ctx.font = "11px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "right";
+  ctx.fillText("Esc menu", w - pad, pad + 12);
+
   const barW = Math.min(280, w - pad * 2);
   const barH = 8;
   const barX = (w - barW) / 2;
@@ -211,7 +400,6 @@ function drawHud(ctx, w, h, v) {
     barY + barH + 16
   );
 
-  // Coach banner
   if (!v.won) {
     const boxW = Math.min(560, w - 32);
     const boxH = 56;
@@ -220,7 +408,8 @@ function drawHud(ctx, w, h, v) {
     ctx.fillStyle = "rgba(17, 20, 31, 0.92)";
     roundRect(ctx, bx, by, boxW, boxH, 8);
     ctx.fill();
-    ctx.strokeStyle = v.phase === 1 ? "rgba(240, 192, 96, 0.45)" : "rgba(78, 201, 208, 0.45)";
+    ctx.strokeStyle =
+      v.phase === 1 ? "rgba(240, 192, 96, 0.45)" : "rgba(78, 201, 208, 0.45)";
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -231,7 +420,11 @@ function drawHud(ctx, w, h, v) {
 
     ctx.fillStyle = "rgba(106,122,144,0.9)";
     ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillText("WASD move  ·  timer auto-loops  ·  R = wipe ghosts & restart", w / 2, by + boxH - 10);
+    ctx.fillText(
+      "WASD move  ·  timer auto-loops  ·  R restart  ·  Esc menu",
+      w / 2,
+      by + boxH - 10
+    );
   }
 
   if (v.maxedToast > 0) {
@@ -239,22 +432,6 @@ function drawHud(ctx, w, h, v) {
     ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, monospace";
     ctx.textAlign = "center";
     ctx.fillText("Max ghosts — win with these, or R to wipe", w / 2, 72);
-  }
-
-  if (v.won) {
-    ctx.fillStyle = "rgba(10, 12, 18, 0.55)";
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = COL.win;
-    ctx.font = "700 28px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("CLEAR", w / 2, h / 2 - 8);
-    ctx.fillStyle = COL.hud;
-    ctx.font = "13px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillText(
-      `Ghosts used: ${v.ghostCount}  ·  R to replay`,
-      w / 2,
-      h / 2 + 22
-    );
   }
 }
 
@@ -284,4 +461,9 @@ function wrapText(ctx, text, x, y, maxW, lineH) {
     }
   }
   if (line) ctx.fillText(line, x, yy);
+}
+
+/** Hit-test axis-aligned rect */
+export function hit(rect, x, y) {
+  return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 }

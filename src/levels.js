@@ -4,10 +4,8 @@
  *   . floor
  *   S spawn
  *   P pressure plate
- *   D door (closed unless linked plate active)
+ *   D door (closed unless linked plates active)
  *   E exit
- *
- * Coords in level objects are tile units; runtime multiplies by TILE.
  */
 
 export const TILE = 40;
@@ -17,7 +15,8 @@ export const MAX_GHOSTS_DEFAULT = 3;
 
 /**
  * Parse a rectangular string map into runtime level.
- * Door links to first plate by default (Slice A).
+ * Default: every door requires ALL plates (AND).
+ * Optional def.doorRequires: { d1: ['p1','p2'], ... } by order index.
  * @param {object} def
  */
 export function parseLevel(def) {
@@ -65,7 +64,7 @@ export function parseLevel(def) {
           y,
           w: TILE,
           h: TILE,
-          requires: [], // filled below
+          requires: [],
         });
       } else if (ch === "E") {
         exit = { x: x + 6, y: y + 6, w: TILE - 12, h: TILE - 12 };
@@ -73,15 +72,20 @@ export function parseLevel(def) {
     }
   }
 
-  // Slice A: every door needs all plates (AND). L01 has one plate.
   const plateIds = plates.map((p) => p.id);
   for (const d of doors) {
-    d.requires = plateIds.length ? [...plateIds] : [];
+    if (def.doorRequires && def.doorRequires[d.id]) {
+      d.requires = [...def.doorRequires[d.id]];
+    } else {
+      d.requires = plateIds.length ? [...plateIds] : [];
+    }
   }
 
   return {
     id: def.id,
+    index: def.index ?? 0,
     name: def.name,
+    brief: def.brief ?? "",
     hint: def.hint ?? "",
     loopSec: def.loopSec ?? 10,
     maxGhosts: def.maxGhosts ?? MAX_GHOSTS_DEFAULT,
@@ -112,17 +116,64 @@ const L01_MAP = `
 ##################
 `;
 
+/**
+ * L02 — two plates AND for one door.
+ * Need ghost on each plate (or ghost + self), then walk exit.
+ */
+const L02_MAP = `
+######################
+#S...................#
+#....................#
+#P............###D E.#
+#.............###....#
+#....................#
+#....................#
+#....................#
+#...................P#
+#....................#
+######################
+`;
+
 export const LEVELS = [
   parseLevel({
+    index: 0,
     id: "l01",
     name: "Hold the line",
+    brief: "One plate. Record a hold, then walk out.",
     hint: "Stand on the plate until the timer ends, then use your ghost to hold it while you exit.",
     loopSec: 10,
     maxGhosts: 3,
     map: L01_MAP,
   }),
+  parseLevel({
+    index: 1,
+    id: "l02",
+    name: "Two hands",
+    brief: "Both plates at once. Door needs AND.",
+    hint: "Door needs BOTH plates. Record one hold per plate, then exit while both stay pressed.",
+    loopSec: 12,
+    maxGhosts: 3,
+    map: L02_MAP,
+  }),
 ];
+
+export function listLevels() {
+  return LEVELS.map((l, i) => ({
+    index: i,
+    id: l.id,
+    name: l.name,
+    brief: l.brief,
+  }));
+}
 
 export function getLevel(index = 0) {
   return LEVELS[index] ?? LEVELS[0];
+}
+
+export function getLevelById(id) {
+  return LEVELS.find((l) => l.id === id) ?? LEVELS[0];
+}
+
+export function levelCount() {
+  return LEVELS.length;
 }

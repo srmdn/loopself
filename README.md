@@ -16,16 +16,22 @@ python3 -m http.server 8765
 | Key | Action |
 |-----|--------|
 | WASD / arrows | Move |
-| R | Hard reset level (wipe all ghosts) |
+| R | Hard reset level (wipe all ghosts) / Replay after clear |
+| Esc / M | Level select menu |
+| 1–9 | Jump to level |
+| N | Next level (after clear) |
+| Click | Choose level / clear buttons |
 
 ## Stack
 
 - HTML + Canvas 2D + vanilla JavaScript
 - No build step, no dependencies
+- `localStorage` for fewest-ghosts personal bests
 
 ## Status
 
-**Slice A** playable: move, timer, ghost record/playback, pressure plate + door, tutorial level L01.
+**Slice B (partial)**: level select menu, best scores, L01 + L02 (two-plate AND).
+Core loop from Slice A: timer, ghost record/playback, plates + doors.
 
 ## License
 
