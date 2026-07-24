@@ -15,6 +15,18 @@ Browser game: HTML, Canvas 2D, vanilla JavaScript (ES modules). No build step an
 
 **Loopself** — short time-loop puzzle. Past runs replay as ghosts. Soft-reset world each loop (Model A). Read `.local/SPEC.md` before non-trivial design changes.
 
+## Git workflow
+
+Short-lived branches + PR into `main` (keep `main` playable).
+
+- Branch: `feat/<topic>`, `fix/<topic>`, or `chore/<topic>`
+- Flow: branch → commit → push → PR → merge → delete branch
+- No long-lived `develop` / “next” branch unless the maintainer asks
+- No force-push or amend of published `main` history unless asked
+- Commit / push / PR only when the maintainer asks
+
+Full workspace defaults (when present): parent `game-dev/AGENTS.md`.
+
 ## Do
 
 - Prefer small, verifiable changes
@@ -28,3 +40,4 @@ Browser game: HTML, Canvas 2D, vanilla JavaScript (ES modules). No build step an
 - Force-push or amend published history unless asked
 - Delete project data or run destructive system actions without explicit approval
 - Publish internal specs or private agent notes from `.local/`
+
