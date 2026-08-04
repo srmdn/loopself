@@ -528,7 +528,19 @@ function drawHud(ctx, w, h, v, meta) {
   ctx.fillStyle = COL.hudDim;
   ctx.font = "11px ui-monospace, Menlo, monospace";
   ctx.textAlign = "right";
-  ctx.fillText("Esc menu", w - pad, pad + 12);
+  // Touch UI draws MENU button; keyboard hint only on desktop
+  try {
+    if (
+      !(
+        window.matchMedia("(pointer: coarse)").matches ||
+        (navigator.maxTouchPoints || 0) > 0
+      )
+    ) {
+      ctx.fillText("Esc menu", w - pad, pad + 12);
+    }
+  } catch {
+    ctx.fillText("Esc menu", w - pad, pad + 12);
+  }
 
   const barW = Math.min(280, w - pad * 2);
   const barH = 8;
@@ -555,7 +567,16 @@ function drawHud(ctx, w, h, v, meta) {
     const boxW = Math.min(560, w - 32);
     const boxH = 56;
     const bx = (w - boxW) / 2;
-    const by = h - boxH - 16;
+    let touchUi = false;
+    try {
+      touchUi =
+        window.matchMedia("(pointer: coarse)").matches ||
+        (navigator.maxTouchPoints || 0) > 0;
+    } catch {
+      touchUi = false;
+    }
+    // Leave room for virtual stick / buttons on phones
+    const by = h - boxH - (touchUi ? 132 : 16);
     ctx.fillStyle = "rgba(17, 20, 31, 0.92)";
     roundRect(ctx, bx, by, boxW, boxH, 8);
     ctx.fill();
@@ -571,11 +592,10 @@ function drawHud(ctx, w, h, v, meta) {
 
     ctx.fillStyle = "rgba(106,122,144,0.9)";
     ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillText(
-      "WASD move  ·  timer auto-loops  ·  R restart  ·  Esc menu",
-      w / 2,
-      by + boxH - 10
-    );
+    const controlsHint = touchUi
+      ? "Stick move  ·  timer auto-loops  ·  R wipe  ·  MENU"
+      : "WASD move  ·  timer auto-loops  ·  R restart  ·  Esc menu";
+    ctx.fillText(controlsHint, w / 2, by + boxH - 10);
   }
 
   if (v.maxedToast > 0) {

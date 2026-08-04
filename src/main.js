@@ -8,6 +8,8 @@ import {
   getMoveInput,
   wasPressed,
   consumeClick,
+  setInputMode,
+  drawTouchControls,
 } from "./input.js";
 import { getLevel, listLevels, levelCount } from "./levels.js";
 import { Game } from "./game.js";
@@ -275,6 +277,8 @@ function frame(now) {
   last = now;
   if (dt > 0.05) dt = 0.05;
 
+  setInputMode(mode);
+
   if (mode === "intro") {
     handleIntroInput();
     lastIntroLayout = renderIntro(ctx, cssW, cssH);
@@ -298,6 +302,7 @@ function frame(now) {
         isNew: false,
         hasNext: hasNext(),
       });
+      drawTouchControls(ctx, cssW, cssH);
     } else if (mode === "clear") {
       lastClearLayout = renderClear(ctx, cssW, cssH, game.view(), {
         best: clearInfo.best,
