@@ -1,6 +1,7 @@
-/** Personal bests — fewest ghosts used per level */
+/** Personal bests + first-boot intro flag */
 
 const STORAGE_KEY = "loopself_best_v1";
+const INTRO_KEY = "loopself_intro_seen_v1";
 
 /**
  * @returns {Record<string, { ghosts: number }>}
@@ -47,4 +48,20 @@ export function recordBest(levelId, ghosts) {
     return { best: n, isNew: true };
   }
   return { best: prev, isNew: false };
+}
+
+export function hasSeenIntro() {
+  try {
+    return localStorage.getItem(INTRO_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markIntroSeen() {
+  try {
+    localStorage.setItem(INTRO_KEY, "1");
+  } catch {
+    /* ignore */
+  }
 }

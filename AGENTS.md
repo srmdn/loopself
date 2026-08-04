@@ -13,7 +13,7 @@ Browser game: HTML, Canvas 2D, vanilla JavaScript (ES modules). No build step an
 
 ## Product (summary)
 
-**Loopself** — short time-loop puzzle. Past runs replay as ghosts. Soft-reset world each loop (Model A). Read `.local/SPEC.md` before non-trivial design changes.
+**Loopself** — short time-loop puzzle. Past runs replay as ghosts. Soft-reset world each loop (Model A). MVP (8 levels + juice) shipped. Read `.local/SPEC.md` before non-trivial design changes.
 
 ## Git workflow
 

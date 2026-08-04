@@ -57,6 +57,10 @@ function resolveCircleRects(x, y, r, rects) {
   return { x: px, y: py };
 }
 
+/**
+ * @typedef {{ x: number, y: number, vx: number, vy: number, life: number, maxLife: number, r: number, color: string }} Particle
+ */
+
 export class Game {
   /** @param {Level} level */
   constructor(level) {
@@ -75,6 +79,14 @@ export class Game {
     this.hintPulse = 0;
     this.maxedToast = 0;
     this.resetPressed = false;
+    /** Screen pulse residual after a soft loop (0..1). */
+    this.loopPulse = 0;
+    /** One-shot flags consumed by main for SFX. */
+    this.justLooped = false;
+    this.justWon = false;
+    this.justReset = false;
+    /** @type {Particle[]} */
+    this.particles = [];
   }
 
   /** @param {Level} level */
@@ -94,6 +106,11 @@ export class Game {
     this.winGhosts = 0;
     this.loopsCommitted = 0;
     this.maxedToast = 0;
+    this.loopPulse = 0;
+    this.justLooped = false;
+    this.justWon = false;
+    this.justReset = true;
+    this.particles = [];
   }
 
   softLoopBoundary() {
@@ -112,6 +129,29 @@ export class Game {
     this.t = 0;
     this.player.x = this.level.spawn.x;
     this.player.y = this.level.spawn.y;
+    this.loopPulse = 1;
+    this.justLooped = true;
+  }
+
+  spawnWinParticles() {
+    const ex = this.level.exit;
+    const cx = ex.x + ex.w / 2;
+    const cy = ex.y + ex.h / 2;
+    const colors = ["#4ec9a0", "#4ec9d0", "#e8eef6", "#f0d060"];
+    for (let i = 0; i < 48; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 40 + Math.random() * 160;
+      this.particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp,
+        life: 0.5 + Math.random() * 0.7,
+        maxLife: 0.5 + Math.random() * 0.7,
+        r: 2 + Math.random() * 3,
+        color: colors[i % colors.length],
+      });
+    }
   }
 
   bodiesAt(t) {
@@ -159,12 +199,19 @@ export class Game {
    * @param {{ up: boolean, down: boolean, left: boolean, right: boolean, reset: boolean }} input
    */
   update(dt, input) {
+    this.justLooped = false;
+    this.justWon = false;
+    this.justReset = false;
+
     if (input.reset && !this.resetPressed) {
       this.hardReset();
       this.resetPressed = true;
       return;
     }
     if (!input.reset) this.resetPressed = false;
+
+    if (this.loopPulse > 0) this.loopPulse = Math.max(0, this.loopPulse - dt * 2.2);
+    this.updateParticles(dt);
 
     if (this.won) {
       this.winFlash = Math.min(2, this.winFlash + dt);
@@ -230,35 +277,61 @@ export class Game {
         this.won = true;
         this.winFlash = 0;
         this.winGhosts = this.ghosts.length;
+        this.justWon = true;
+        this.spawnWinParticles();
       }
     }
   }
 
-  /** Contextual coach — works for 1+ plates. */
+  /** @param {number} dt */
+  updateParticles(dt) {
+    for (const p of this.particles) {
+      p.life -= dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.96;
+      p.vy *= 0.96;
+      p.vy += 30 * dt;
+    }
+    this.particles = this.particles.filter((p) => p.life > 0);
+  }
+
+  /** Contextual coach — works for 1+ plates / multi-door. */
   coachText(plates, doorsOpen) {
     if (this.won) return "Clear!";
 
     const plateList = this.level.plates;
     const heldCount = plateList.filter((p) => plates[p.id]).length;
     const need = plateList.length;
+    const doorCount = this.level.doors.length;
+    const openCount = this.level.doors.filter((d) => this.doorOpen(d, plates)).length;
     const playerOnPlate = plateList.some((p) =>
       circleRectOverlap(this.player.x, this.player.y, PLAYER_RADIUS, p)
     );
+
+    // Prefer level-authored hint on first loop when empty
+    if (this.ghosts.length === 0 && !playerOnPlate && this.level.hint) {
+      if (need >= 2 || doorCount >= 2) return this.level.hint;
+    }
+
+    if (doorCount >= 2 && !doorsOpen) {
+      return `Gates ${openCount}/${doorCount} open · plates ${heldCount}/${need} held. Record holds, then walk every door.`;
+    }
 
     if (need >= 2) {
       if (!doorsOpen) {
         if (this.ghosts.length === 0) {
           if (playerOnPlate) {
-            return `Holding 1 plate — stay until timer ends, then record the other plate. (${heldCount}/${need} held now)`;
+            return `Holding a plate — stay until timer ends, then record the others. (${heldCount}/${need} held)`;
           }
           return `Door needs ALL ${need} plates at once. Record a ghost on each plate, then walk to EXIT.`;
         }
-        return `Need ${need} plates held together (${heldCount}/${need}). Park ghosts on plates, then go when door opens.`;
+        return `Need ${need} plates held together (${heldCount}/${need}). Park ghosts on plates, then go when open.`;
       }
-      return "All plates held — door open! Reach the green EXIT.";
+      return "Path clear — reach the green EXIT.";
     }
 
-    // Single-plate (L01) coaching
+    // Single-plate coaching
     if (this.ghosts.length === 0) {
       if (playerOnPlate) {
         return "Good — stay on the plate until the timer hits 0. Your path is being recorded.";
@@ -292,6 +365,18 @@ export class Game {
 
     const ghostPos = this.ghosts.map((g) => poseAt(g, this.t));
 
+    /** Ghost trail samples (positions at times ≤ t) for alpha trail. */
+    const ghostTrails = this.ghosts.map((g) => {
+      /** @type {{ x: number, y: number }[]} */
+      const pts = [];
+      const step = Math.max(1, Math.floor(g.samples.length / 24));
+      for (let i = 0; i < g.samples.length; i += step) {
+        const s = g.samples[i];
+        if (s.t <= this.t + 0.02) pts.push({ x: s.x, y: s.y });
+      }
+      return pts;
+    });
+
     /** @type {Record<string, boolean>} */
     const plateOn = {};
     for (const p of this.level.plates) plateOn[p.id] = !!plates[p.id];
@@ -302,6 +387,7 @@ export class Game {
       loopSec: this.level.loopSec,
       player: { x: this.player.x, y: this.player.y },
       ghosts: ghostPos,
+      ghostTrails,
       ghostCount: this.ghosts.length,
       maxGhosts: this.level.maxGhosts,
       plates: this.level.plates,
@@ -317,6 +403,8 @@ export class Game {
       maxedToast: this.maxedToast,
       loopsCommitted: this.loopsCommitted,
       phase: this.ghosts.length === 0 ? 1 : 2,
+      loopPulse: this.loopPulse,
+      particles: this.particles,
     };
   }
 }
