@@ -6,6 +6,9 @@
  *   P pressure plate
  *   D door (closed unless linked plates active)
  *   E exit
+ *
+ * Default: every door requires ALL plates (AND).
+ * Override with def.doorRequires: { d1: ['p1'], d2: ['p2'], ... }
  */
 
 export const TILE = 40;
@@ -15,8 +18,6 @@ export const MAX_GHOSTS_DEFAULT = 3;
 
 /**
  * Parse a rectangular string map into runtime level.
- * Default: every door requires ALL plates (AND).
- * Optional def.doorRequires: { d1: ['p1','p2'], ... } by order index.
  * @param {object} def
  */
 export function parseLevel(def) {
@@ -116,10 +117,7 @@ const L01_MAP = `
 ##################
 `;
 
-/**
- * L02 — two plates AND for one door.
- * Need ghost on each plate (or ghost + self), then walk exit.
- */
+/** L02 — two plates AND for one door */
 const L02_MAP = `
 ######################
 #S...................#
@@ -132,6 +130,115 @@ const L02_MAP = `
 #...................P#
 #....................#
 ######################
+`;
+
+/**
+ * L03 — tight window: plate far SE, door/exit near spawn.
+ * Ghost spends most of the loop walking; you only have a short open window.
+ */
+const L03_MAP = `
+############################
+#S.....................D E.#
+#......................###.#
+#..........................#
+#.####.....................#
+#.#........................#
+#.#........................#
+#.#........................#
+#.#.......................P#
+#.#........................#
+############################
+`;
+
+/**
+ * L04 — ghost body blocks the short corridor.
+ * Hold plate via the top choke; exit via the long bottom path while ghost holds.
+ */
+const L04_MAP = `
+########################
+#S.....................#
+#.####.................#
+#.#P.#......###D E.....#
+#.#..#......###........#
+#.#..########..........#
+#.#....................#
+#.#....................#
+#.######################
+#......................#
+########################
+`;
+
+/**
+ * L05 — two doors, each needs its own plate (sequential gates).
+ * d1 → p1, d2 → p2
+ */
+const L05_MAP = `
+##############################
+#S...........###.............#
+#............#D#.............#
+#P...........###.............#
+#............................#
+#............###.............#
+#............#D#..........E..#
+#............###.............#
+#...........................P#
+#............................#
+##############################
+`;
+
+/**
+ * L06 — three plates AND. Needs two ghosts + self (or three ghosts).
+ */
+const L06_MAP = `
+##########################
+#S.......................#
+#........................#
+#P..........###D E.......#
+#...........###..........#
+#........................#
+#........................#
+#...........P............#
+#........................#
+#......................P.#
+#........................#
+##########################
+`;
+
+/**
+ * L07 — split path: outer ring plate + inner hold.
+ * Door needs both; one plate sits on a detour so bodies don't stack badly.
+ */
+const L07_MAP = `
+############################
+#S.........................#
+#.####.....................#
+#.#P.#............###D E...#
+#.#..#............###......#
+#.#..################......#
+#.#........................#
+#.#........................#
+#.#........P...............#
+#.##########################
+#..........................#
+############################
+`;
+
+/**
+ * L08 — capstone: gate A (p1), then gate B needs p1+p2.
+ * Park one ghost on each plate; walk both doors.
+ */
+const L08_MAP = `
+################################
+#S.............###.............#
+#..............#D#.............#
+#P.............###.............#
+#..............................#
+#..............###.............#
+#..............#D#..........E..#
+#..............###.............#
+#............................P.#
+#..............................#
+################################
 `;
 
 export const LEVELS = [
@@ -154,6 +261,68 @@ export const LEVELS = [
     loopSec: 12,
     maxGhosts: 3,
     map: L02_MAP,
+  }),
+  parseLevel({
+    index: 2,
+    id: "l03",
+    name: "Tight window",
+    brief: "Long walk to the plate. Short open window.",
+    hint: "Your ghost needs most of the loop to reach the plate. Wait near the door, then sprint the exit.",
+    loopSec: 11,
+    maxGhosts: 3,
+    map: L03_MAP,
+  }),
+  parseLevel({
+    index: 3,
+    id: "l04",
+    name: "Don't block yourself",
+    brief: "Ghost body fills the short path.",
+    hint: "Hold the plate via the top corridor. On the next loop, take the long bottom path around your ghost.",
+    loopSec: 12,
+    maxGhosts: 3,
+    map: L04_MAP,
+  }),
+  parseLevel({
+    index: 4,
+    id: "l05",
+    name: "Two gates",
+    brief: "Each door listens to a different plate.",
+    hint: "First door needs plate 1 only. Second door needs plate 2 only. Record holds, then walk both gates.",
+    loopSec: 12,
+    maxGhosts: 3,
+    map: L05_MAP,
+    doorRequires: { d1: ["p1"], d2: ["p2"] },
+  }),
+  parseLevel({
+    index: 5,
+    id: "l06",
+    name: "Three holds",
+    brief: "Three plates. One door. Full AND.",
+    hint: "All three plates must be held together. Two ghosts on plates, you on the third — or three ghosts.",
+    loopSec: 12,
+    maxGhosts: 3,
+    map: L06_MAP,
+  }),
+  parseLevel({
+    index: 6,
+    id: "l07",
+    name: "Detour hold",
+    brief: "One plate is on a side path that blocks.",
+    hint: "Top plate sits in a choke. Use the bottom route when a ghost is parked, and keep both plates held for the door.",
+    loopSec: 13,
+    maxGhosts: 3,
+    map: L07_MAP,
+  }),
+  parseLevel({
+    index: 7,
+    id: "l08",
+    name: "Chain reaction",
+    brief: "Gate A then gate B. B needs both plates.",
+    hint: "First door needs plate 1. Second door needs plates 1 and 2. Stack holds carefully, then walk the chain.",
+    loopSec: 14,
+    maxGhosts: 3,
+    map: L08_MAP,
+    doorRequires: { d1: ["p1"], d2: ["p1", "p2"] },
   }),
 ];
 

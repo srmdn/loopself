@@ -29,33 +29,41 @@ const COL = {
 
 /**
  * Layout for level select cards (CSS pixels).
+ * 1 column when few levels; 2 columns when many.
  * @param {number} w
  * @param {number} h
  * @param {number} count
  */
 export function menuLayout(w, h, count) {
-  const titleY = Math.max(48, h * 0.12);
-  const cardW = Math.min(420, w - 48);
-  const cardH = 64;
-  const gap = 12;
-  const totalH = count * cardH + (count - 1) * gap;
-  let startY = titleY + 56;
-  if (startY + totalH > h - 40) {
-    startY = Math.max(100, (h - totalH) / 2);
+  const titleY = Math.max(40, h * 0.08);
+  const cols = count > 5 ? 2 : 1;
+  const gapX = 12;
+  const gapY = 10;
+  const cardH = count > 6 ? 52 : 58;
+  const maxCardW = cols === 1 ? Math.min(440, w - 48) : Math.min(320, (w - 48 - gapX) / 2);
+  const cardW = maxCardW;
+  const rows = Math.ceil(count / cols);
+  const totalW = cols * cardW + (cols - 1) * gapX;
+  const totalH = rows * cardH + (rows - 1) * gapY;
+  let startY = titleY + 52;
+  if (startY + totalH > h - 36) {
+    startY = Math.max(88, h - totalH - 36);
   }
-  const x = (w - cardW) / 2;
+  const x0 = (w - totalW) / 2;
   /** @type {{ index: number, x: number, y: number, w: number, h: number }[]} */
   const cards = [];
   for (let i = 0; i < count; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
     cards.push({
       index: i,
-      x,
-      y: startY + i * (cardH + gap),
+      x: x0 + col * (cardW + gapX),
+      y: startY + row * (cardH + gapY),
       w: cardW,
       h: cardH,
     });
   }
-  return { titleY, cards };
+  return { titleY, cards, cols };
 }
 
 /**
@@ -74,6 +82,30 @@ export function clearLayout(w, h) {
     replay: { x: x0, y, w: bw, h: bh, id: "replay" },
     next: { x: x0 + bw + gap, y, w: bw, h: bh, id: "next" },
     menu: { x: x0 + (bw + gap) * 2, y, w: bw, h: bh, id: "menu" },
+  };
+}
+
+/**
+ * First-boot rule card layout.
+ * @param {number} w
+ * @param {number} h
+ */
+export function introLayout(w, h) {
+  const cardW = Math.min(420, w - 48);
+  const cardH = Math.min(340, h - 80);
+  return {
+    card: {
+      x: (w - cardW) / 2,
+      y: (h - cardH) / 2,
+      w: cardW,
+      h: cardH,
+    },
+    btn: {
+      x: (w - 160) / 2,
+      y: (h - cardH) / 2 + cardH - 56,
+      w: 160,
+      h: 40,
+    },
   };
 }
 
@@ -97,7 +129,11 @@ export function renderMenu(ctx, cssW, cssH, state) {
 
   ctx.fillStyle = COL.hudDim;
   ctx.font = "13px ui-monospace, SFMono-Regular, Menlo, monospace";
-  ctx.fillText("Short loops. Past you helps present you.", cssW / 2, layout.titleY + 28);
+  ctx.fillText(
+    "Every loop you leave another you behind.",
+    cssW / 2,
+    layout.titleY + 26
+  );
 
   for (const card of layout.cards) {
     const lv = levels[card.index];
@@ -111,35 +147,106 @@ export function renderMenu(ctx, cssW, cssH, state) {
 
     const num = String(card.index + 1).padStart(2, "0");
     ctx.fillStyle = COL.accent;
-    ctx.font = "700 16px ui-monospace, Menlo, monospace";
+    ctx.font = "700 15px ui-monospace, Menlo, monospace";
     ctx.textAlign = "left";
-    ctx.fillText(num, card.x + 16, card.y + 28);
+    ctx.fillText(num, card.x + 14, card.y + 24);
 
     ctx.fillStyle = COL.hud;
-    ctx.font = "600 15px ui-monospace, Menlo, monospace";
-    ctx.fillText(lv.name, card.x + 52, card.y + 28);
+    ctx.font = "600 14px ui-monospace, Menlo, monospace";
+    ctx.fillText(lv.name, card.x + 46, card.y + 24);
 
     ctx.fillStyle = COL.hudDim;
-    ctx.font = "12px ui-monospace, Menlo, monospace";
-    ctx.fillText(lv.brief, card.x + 52, card.y + 48);
+    ctx.font = "11px ui-monospace, Menlo, monospace";
+    const brief =
+      lv.brief.length > 42 && layout.cols === 2
+        ? lv.brief.slice(0, 40) + "…"
+        : lv.brief;
+    ctx.fillText(brief, card.x + 46, card.y + 42);
 
     const best = bests[lv.id];
     ctx.textAlign = "right";
     if (best != null) {
       ctx.fillStyle = COL.win;
-      ctx.font = "12px ui-monospace, Menlo, monospace";
-      ctx.fillText(`best ${best}g`, card.x + card.w - 16, card.y + 36);
+      ctx.font = "11px ui-monospace, Menlo, monospace";
+      ctx.fillText(`${best}g`, card.x + card.w - 14, card.y + 32);
     } else {
       ctx.fillStyle = COL.hudDim;
-      ctx.font = "12px ui-monospace, Menlo, monospace";
-      ctx.fillText("—", card.x + card.w - 16, card.y + 36);
+      ctx.font = "11px ui-monospace, Menlo, monospace";
+      ctx.fillText("—", card.x + card.w - 14, card.y + 32);
     }
   }
 
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(106,122,144,0.85)";
   ctx.font = "11px ui-monospace, Menlo, monospace";
-  ctx.fillText("Click a level  ·  or press 1–9", cssW / 2, cssH - 20);
+  ctx.fillText("Click a level  ·  or press 1–8", cssW / 2, cssH - 16);
+
+  return layout;
+}
+
+/**
+ * First-boot rules overlay (full screen).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} cssW
+ * @param {number} cssH
+ */
+export function renderIntro(ctx, cssW, cssH) {
+  ctx.fillStyle = COL.bg;
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  const layout = introLayout(cssW, cssH);
+  const { card, btn } = layout;
+
+  ctx.fillStyle = COL.card;
+  roundRect(ctx, card.x, card.y, card.w, card.h, 12);
+  ctx.fill();
+  ctx.strokeStyle = COL.accent;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = COL.hud;
+  ctx.font = "700 22px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("How to play", cssW / 2, card.y + 40);
+
+  const lines = [
+    "Each level is a short loop.",
+    "When the timer ends, your path replays",
+    "as a cyan ghost.",
+    "",
+    "Ghosts hold pressure plates.",
+    "You walk through open doors.",
+    "Cooperate with past you — or block them.",
+    "",
+    "WASD move  ·  R wipe ghosts  ·  Esc menu",
+    "Fewer ghosts = better score.",
+  ];
+
+  ctx.font = "13px ui-monospace, Menlo, monospace";
+  let yy = card.y + 72;
+  for (const line of lines) {
+    ctx.fillStyle = line === "" ? COL.hudDim : COL.hudDim;
+    if (
+      line.startsWith("WASD") ||
+      line.startsWith("Ghosts") ||
+      line.startsWith("You walk") ||
+      line.startsWith("Fewer")
+    ) {
+      ctx.fillStyle = COL.hud;
+    }
+    if (line) ctx.fillText(line, cssW / 2, yy);
+    yy += line === "" ? 10 : 18;
+  }
+
+  ctx.fillStyle = COL.cardHot;
+  roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 8);
+  ctx.fill();
+  ctx.strokeStyle = COL.accent;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = COL.accent;
+  ctx.font = "600 13px ui-monospace, Menlo, monospace";
+  ctx.fillText("Got it (Enter)", cssW / 2, btn.y + btn.h / 2 + 4);
 
   return layout;
 }
@@ -154,6 +261,7 @@ export function renderMenu(ctx, cssW, cssH, state) {
 export function renderPlay(ctx, cssW, cssH, v, clearInfo) {
   drawWorld(ctx, cssW, cssH, v);
   drawHud(ctx, cssW, cssH, v, clearInfo);
+  drawLoopPulse(ctx, cssW, cssH, v.loopPulse);
 }
 
 /**
@@ -328,6 +436,20 @@ function drawWorld(ctx, cssW, cssH, v) {
     ctx.fillText("EXIT", e.x + e.w / 2, e.y + e.h / 2 + 3);
   }
 
+  // Ghost alpha trails
+  if (v.ghostTrails) {
+    for (const trail of v.ghostTrails) {
+      for (let i = 0; i < trail.length; i++) {
+        const p = trail[i];
+        const a = 0.04 + (i / Math.max(1, trail.length)) * 0.18;
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(78, 201, 208, ${a})`;
+        ctx.arc(p.x, p.y, PLAYER_RADIUS * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
   for (const g of v.ghosts) {
     ctx.beginPath();
     ctx.fillStyle = COL.ghost;
@@ -347,7 +469,35 @@ function drawWorld(ctx, cssW, cssH, v) {
   ctx.arc(v.player.x, v.player.y, PLAYER_RADIUS, 0, Math.PI * 2);
   ctx.fill();
 
+  // Win particles (world space)
+  if (v.particles && v.particles.length) {
+    for (const p of v.particles) {
+      const a = Math.max(0, p.life / p.maxLife);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   ctx.restore();
+}
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} w
+ * @param {number} h
+ * @param {number} pulse 0..1
+ */
+function drawLoopPulse(ctx, w, h, pulse) {
+  if (!pulse || pulse <= 0) return;
+  ctx.fillStyle = `rgba(78, 201, 208, ${0.12 * pulse})`;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = `rgba(78, 201, 208, ${0.35 * pulse})`;
+  ctx.lineWidth = 3 + 6 * pulse;
+  ctx.strokeRect(4, 4, w - 8, h - 8);
 }
 
 /**
@@ -366,7 +516,8 @@ function drawHud(ctx, w, h, v, meta) {
 
   ctx.fillStyle = COL.hudDim;
   ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, monospace";
-  ctx.fillText(`${v.level.name}`, pad, pad + 30);
+  const num = String((v.level.index ?? 0) + 1).padStart(2, "0");
+  ctx.fillText(`${num}  ${v.level.name}`, pad, pad + 30);
 
   if (meta.best != null) {
     ctx.fillStyle = COL.win;

@@ -1,6 +1,6 @@
 /**
- * Loopself — Slice B (partial)
- * Menu, level select, best scores, L01 + L02.
+ * Loopself — MVP complete (Slice B + C)
+ * 8 levels, menu, bests, intro, SFX, juice.
  */
 
 import {
@@ -11,22 +11,38 @@ import {
 } from "./input.js";
 import { getLevel, listLevels, levelCount } from "./levels.js";
 import { Game } from "./game.js";
-import { getBest, recordBest, loadBests } from "./storage.js";
+import {
+  getBest,
+  recordBest,
+  loadBests,
+  hasSeenIntro,
+  markIntroSeen,
+} from "./storage.js";
 import {
   renderMenu,
   renderPlay,
   renderClear,
+  renderIntro,
   menuLayout,
   clearLayout,
+  introLayout,
   hit,
 } from "./render.js";
+import {
+  unlockAudio,
+  playLoop,
+  playWin,
+  playUi,
+  playReset,
+  playTick,
+} from "./audio.js";
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("game"));
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("Canvas 2D unavailable");
 
-/** @type {'menu' | 'play' | 'clear'} */
-let mode = "menu";
+/** @type {'intro' | 'menu' | 'play' | 'clear'} */
+let mode = hasSeenIntro() ? "menu" : "intro";
 let levelIndex = 0;
 let game = new Game(getLevel(0));
 /** @type {{ best: number | null, isNew: boolean }} */
@@ -36,10 +52,13 @@ let hoverIndex = -1;
 let lastMenuLayout = null;
 /** @type {ReturnType<typeof clearLayout> | null} */
 let lastClearLayout = null;
+/** @type {ReturnType<typeof introLayout> | null} */
+let lastIntroLayout = null;
 
 let cssW = 0;
 let cssH = 0;
 let dpr = 1;
+let lastTickSecond = -1;
 
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -63,18 +82,31 @@ function bestsMap() {
 }
 
 function startLevel(index) {
+  unlockAudio();
+  playUi();
   levelIndex = Math.max(0, Math.min(levelCount() - 1, index));
   game = new Game(getLevel(levelIndex));
   mode = "play";
   clearInfo = { best: getBest(game.level.id), isNew: false };
+  lastTickSecond = -1;
 }
 
 function goMenu() {
+  unlockAudio();
   mode = "menu";
   hoverIndex = -1;
 }
 
+function dismissIntro() {
+  unlockAudio();
+  markIntroSeen();
+  playUi();
+  mode = "menu";
+}
+
 function onWin() {
+  unlockAudio();
+  playWin();
   const ghosts = game.winGhosts;
   const result = recordBest(game.level.id, ghosts);
   clearInfo = { best: result.best, isNew: result.isNew };
@@ -83,6 +115,17 @@ function onWin() {
 
 function hasNext() {
   return levelIndex + 1 < levelCount();
+}
+
+function handleIntroInput() {
+  if (wasPressed("confirm") || wasPressed("menu")) {
+    dismissIntro();
+    return;
+  }
+  const c = consumeClick();
+  if (c && lastIntroLayout && hit(lastIntroLayout.btn, c.x, c.y)) {
+    dismissIntro();
+  }
 }
 
 function handleMenuInput() {
@@ -110,7 +153,6 @@ function handlePlayInput(dt) {
     return;
   }
 
-  // Digit jump while playing
   for (let n = 1; n <= 9; n++) {
     if (wasPressed(`lv${n}`) && n <= levelCount()) {
       startLevel(n - 1);
@@ -119,7 +161,34 @@ function handlePlayInput(dt) {
   }
 
   game.update(dt, getMoveInput());
-  if (game.won) onWin();
+
+  if (game.justReset) {
+    unlockAudio();
+    playReset();
+    lastTickSecond = -1;
+  }
+  if (game.justLooped) {
+    unlockAudio();
+    playLoop();
+    lastTickSecond = -1;
+  }
+  if (game.justWon) {
+    onWin();
+    return;
+  }
+
+  // Soft tick in last 3 seconds of loop
+  if (!game.won) {
+    const left = game.level.loopSec - game.t;
+    if (left <= 3 && left > 0) {
+      const sec = Math.ceil(left);
+      if (sec !== lastTickSecond) {
+        lastTickSecond = sec;
+        unlockAudio();
+        playTick();
+      }
+    }
+  }
 }
 
 function handleClearInput() {
@@ -128,9 +197,12 @@ function handleClearInput() {
     return;
   }
   if (wasPressed("reset") || wasPressed("confirm")) {
+    unlockAudio();
+    playReset();
     game.hardReset();
     mode = "play";
     clearInfo = { best: getBest(game.level.id), isNew: false };
+    lastTickSecond = -1;
     return;
   }
   if (wasPressed("next") && hasNext()) {
@@ -141,9 +213,12 @@ function handleClearInput() {
   const c = consumeClick();
   if (c && lastClearLayout) {
     if (hit(lastClearLayout.replay, c.x, c.y)) {
+      unlockAudio();
+      playReset();
       game.hardReset();
       mode = "play";
       clearInfo = { best: getBest(game.level.id), isNew: false };
+      lastTickSecond = -1;
       return;
     }
     if (hit(lastClearLayout.next, c.x, c.y) && hasNext()) {
@@ -173,6 +248,22 @@ canvas.addEventListener("pointermove", (e) => {
   }
 });
 
+// Unlock audio on first pointer/key
+window.addEventListener(
+  "pointerdown",
+  () => {
+    unlockAudio();
+  },
+  { once: true }
+);
+window.addEventListener(
+  "keydown",
+  () => {
+    unlockAudio();
+  },
+  { once: true }
+);
+
 initInput(canvas);
 resize();
 window.addEventListener("resize", resize);
@@ -184,7 +275,12 @@ function frame(now) {
   last = now;
   if (dt > 0.05) dt = 0.05;
 
-  if (mode === "menu") {
+  if (mode === "intro") {
+    handleIntroInput();
+    lastIntroLayout = renderIntro(ctx, cssW, cssH);
+    lastMenuLayout = null;
+    lastClearLayout = null;
+  } else if (mode === "menu") {
     handleMenuInput();
     lastMenuLayout = renderMenu(ctx, cssW, cssH, {
       levels: listLevels(),
@@ -192,9 +288,11 @@ function frame(now) {
       hoverIndex,
     });
     lastClearLayout = null;
+    lastIntroLayout = null;
   } else if (mode === "play") {
     handlePlayInput(dt);
     if (mode === "play") {
+      // Keep particles/tints updating even mid-frame transitions
       renderPlay(ctx, cssW, cssH, game.view(), {
         best: getBest(game.level.id),
         isNew: false,
@@ -208,7 +306,10 @@ function frame(now) {
       });
     }
     lastMenuLayout = null;
+    lastIntroLayout = null;
   } else if (mode === "clear") {
+    // Animate residual particles under clear overlay
+    game.updateParticles(dt);
     handleClearInput();
     lastClearLayout = renderClear(ctx, cssW, cssH, game.view(), {
       best: clearInfo.best,
@@ -216,6 +317,7 @@ function frame(now) {
       hasNext: hasNext(),
     });
     lastMenuLayout = null;
+    lastIntroLayout = null;
   }
 
   requestAnimationFrame(frame);
