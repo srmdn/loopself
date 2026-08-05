@@ -38,8 +38,8 @@ const TOUCH = {
   stickR: 52,
   stickMax: 40,
   stickDead: 0.28,
-  btnR: 26,
-  pad: 16,
+  btnR: 30,
+  pad: 18,
 };
 
 const KEY_MAP = {
@@ -86,8 +86,11 @@ function codeToAction(code) {
  * @param {number} h
  */
 export function touchLayout(w, h) {
-  const pad = TOUCH.pad;
-  const bottom = h - pad - 12;
+  const pad = Math.max(
+    TOUCH.pad,
+    Math.min(30, Math.floor(Math.min(w, h) * 0.05))
+  );
+  const bottom = Math.max(TOUCH.btnR * 2 + pad, h - pad - 12);
   return {
     stickBaseX: pad + TOUCH.stickR + 4,
     stickBaseY: bottom - TOUCH.stickR - 4,

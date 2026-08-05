@@ -11,6 +11,7 @@ import {
   setInputMode,
   drawTouchControls,
 } from "./input.js";
+import { initOrientationPrompt, viewportSize } from "./mobile.js";
 import { getLevel, listLevels, levelCount } from "./levels.js";
 import { Game } from "./game.js";
 import {
@@ -42,6 +43,7 @@ import {
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("game"));
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("Canvas 2D unavailable");
+initOrientationPrompt({ game: "Loopself", accent: "#4ec9d0" });
 
 /** @type {'intro' | 'menu' | 'play' | 'clear'} */
 let mode = hasSeenIntro() ? "menu" : "intro";
@@ -64,8 +66,9 @@ let lastTickSecond = -1;
 
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  cssW = window.innerWidth;
-  cssH = window.innerHeight;
+  const viewport = viewportSize();
+  cssW = viewport.w;
+  cssH = viewport.h;
   canvas.width = Math.floor(cssW * dpr);
   canvas.height = Math.floor(cssH * dpr);
   canvas.style.width = `${cssW}px`;
@@ -269,6 +272,13 @@ window.addEventListener(
 initInput(canvas);
 resize();
 window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", () => {
+  requestAnimationFrame(resize);
+  window.setTimeout(resize, 80);
+});
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", resize, { passive: true });
+}
 
 let last = performance.now();
 

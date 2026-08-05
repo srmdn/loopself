@@ -29,14 +29,14 @@ const COL = {
 
 /**
  * Layout for level select cards (CSS pixels).
- * 1 column when few levels; 2 columns when many.
+ * 1 column on narrow phones; 2 columns when the viewport has room.
  * @param {number} w
  * @param {number} h
  * @param {number} count
  */
 export function menuLayout(w, h, count) {
   const titleY = Math.max(40, h * 0.08);
-  const cols = count > 5 ? 2 : 1;
+  const cols = count > 5 && w >= 420 ? 2 : 1;
   const gapX = 12;
   const gapY = 10;
   const cardH = count > 6 ? 52 : 58;
@@ -72,9 +72,9 @@ export function menuLayout(w, h, count) {
  * @param {number} h
  */
 export function clearLayout(w, h) {
-  const bw = 140;
+  const gap = w < 420 ? 8 : 12;
+  const bw = Math.min(140, Math.max(88, (w - 32 - gap * 2) / 3));
   const bh = 40;
-  const gap = 12;
   const total = bw * 3 + gap * 2;
   const x0 = (w - total) / 2;
   const y = h / 2 + 48;
@@ -157,9 +157,10 @@ export function renderMenu(ctx, cssW, cssH, state) {
 
     ctx.fillStyle = COL.hudDim;
     ctx.font = "11px ui-monospace, Menlo, monospace";
+    const briefLimit = card.w < 160 ? 12 : card.w < 210 ? 17 : 42;
     const brief =
-      lv.brief.length > 42 && layout.cols === 2
-        ? lv.brief.slice(0, 40) + "…"
+      lv.brief.length > briefLimit
+        ? lv.brief.slice(0, Math.max(8, briefLimit - 1)) + "…"
         : lv.brief;
     ctx.fillText(brief, card.x + 46, card.y + 42);
 
@@ -312,10 +313,21 @@ function drawBtn(ctx, b, label) {
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.fillStyle = COL.hud;
-  ctx.font = "12px ui-monospace, Menlo, monospace";
+  const compact = b.w < 112;
+  const compactLabel =
+    compact && label === "Replay (R)"
+      ? "Replay"
+      : compact && label === "Next (N)"
+        ? "Next"
+        : compact && label === "Next —"
+          ? "Next"
+          : compact && label === "Menu (Esc)"
+            ? "Menu"
+            : label;
+  ctx.font = `${compact ? 10 : 12}px ui-monospace, Menlo, monospace`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2);
+  ctx.fillText(compactLabel, b.x + b.w / 2, b.y + b.h / 2);
   ctx.textBaseline = "alphabetic";
 }
 

@@ -6,6 +6,35 @@
 /** @type {AudioContext | null} */
 let ctx = null;
 
+/** @type {GainNode | null} */
+let masterGain = null;
+/** @type {DynamicsCompressorNode | null} */
+let masterCompressor = null;
+
+/**
+ * Route all SFX through one full-level, peak-safe output stage.
+ * Device/browser volume remains the final user-facing volume control.
+ * @param {AudioContext} a
+ * @returns {GainNode}
+ */
+function output(a) {
+  if (masterGain) return masterGain;
+
+  masterGain = a.createGain();
+  masterGain.gain.value = 1;
+
+  masterCompressor = a.createDynamicsCompressor();
+  masterCompressor.threshold.value = -12;
+  masterCompressor.knee.value = 6;
+  masterCompressor.ratio.value = 6;
+  masterCompressor.attack.value = 0.003;
+  masterCompressor.release.value = 0.12;
+
+  masterGain.connect(masterCompressor);
+  masterCompressor.connect(a.destination);
+  return masterGain;
+}
+
 export function ensureAudio() {
   if (ctx) return ctx;
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -44,35 +73,35 @@ function blip(type, freq, dur, gain, freqEnd) {
   g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   osc.connect(g);
-  g.connect(a.destination);
+  g.connect(output(a));
   osc.start(t0);
   osc.stop(t0 + dur + 0.02);
 }
 
 /** Soft tick near end of loop (optional pressure). */
 export function playTick() {
-  blip("sine", 880, 0.04, 0.03);
+  blip("sine", 880, 0.04, 0.1);
 }
 
 /** Whoosh when a loop commits / soft-resets. */
 export function playLoop() {
-  blip("triangle", 220, 0.18, 0.07, 90);
-  setTimeout(() => blip("sine", 160, 0.12, 0.04, 60), 40);
+  blip("triangle", 220, 0.18, 0.2, 90);
+  setTimeout(() => blip("sine", 160, 0.12, 0.12, 60), 40);
 }
 
 /** Win chime. */
 export function playWin() {
-  blip("sine", 523, 0.1, 0.08);
-  setTimeout(() => blip("sine", 659, 0.1, 0.07), 90);
-  setTimeout(() => blip("sine", 784, 0.18, 0.08), 180);
+  blip("sine", 523, 0.1, 0.2);
+  setTimeout(() => blip("sine", 659, 0.1, 0.18), 90);
+  setTimeout(() => blip("sine", 784, 0.18, 0.2), 180);
 }
 
 /** Soft UI confirm. */
 export function playUi() {
-  blip("sine", 440, 0.05, 0.04);
+  blip("sine", 440, 0.1, 0.12);
 }
 
 /** Hard reset wipe. */
 export function playReset() {
-  blip("sawtooth", 180, 0.1, 0.035, 60);
+  blip("sawtooth", 180, 0.1, 0.12, 60);
 }

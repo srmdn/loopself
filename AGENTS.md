@@ -9,7 +9,7 @@ Rules for automated assistants working in this repository.
 
 ## Stack (summary)
 
-Browser game: HTML, Canvas 2D, vanilla JavaScript (ES modules). No build step and no new dependencies unless the maintainer approves.
+Browser game: HTML, Canvas 2D, vanilla JavaScript (ES modules). esbuild is a development-only production build tool; no runtime dependencies.
 
 ## Product (summary)
 
@@ -40,4 +40,3 @@ Full workspace defaults (when present): parent `game-dev/AGENTS.md`.
 - Force-push or amend published history unless asked
 - Delete project data or run destructive system actions without explicit approval
 - Publish internal specs or private agent notes from `.local/`
-
