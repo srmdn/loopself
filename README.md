@@ -8,11 +8,19 @@ Short time-loop puzzle. Each run lasts a few seconds. When the timer ends, your 
 
 ## Play
 
-Serve the project root with any static file server (ES modules do not load from `file://`), then open the site in a browser.
+For source development, serve the project root with any static file server (ES modules do not load from `file://`), then open the site in a browser.
 
 ```bash
 # example
 python3 -m http.server 8765
+```
+
+For a production bundle:
+
+```bash
+npm install
+npm run build
+python3 -m http.server 8765 --directory dist
 ```
 
 ## Controls
@@ -43,7 +51,7 @@ python3 -m http.server 8765
 ## Stack
 
 - HTML + Canvas 2D + vanilla JavaScript
-- No build step, no dependencies
+- esbuild development dependency for the production bundle; no runtime dependencies
 - `localStorage` for fewest-ghosts personal bests
 - Web Audio for light SFX
 
